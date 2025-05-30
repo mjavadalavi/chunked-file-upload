@@ -6,3 +6,5 @@ python-dotenv
 pydantic
 requests
 PyJWT 
+boto3
+pydantic-settings

@@ -9,13 +9,14 @@ class Settings(BaseSettings):
     EXPECTED_JWT_ISSUER: str
     EXPECTED_JWT_AUDIENCE: str
 
-    S3_ACCESS_KEY: str
-    S3_SECRET_KEY: str
-    S3_BUCKET_NAME: str
-    S3_ENDPOINT_URL: str
+    S3_ACCESS_KEY: str = ""
+    S3_SECRET_KEY: str = ""
+    S3_BUCKET_NAME: str = "hayula-uploads"
+    S3_ENDPOINT_URL: str = ""
     S3_REGION_NAME: Optional[str] = None
 
     LOCAL_TEMP_CHUNK_PATH: Optional[str] = "/tmp/hayula_chunks"
+    STORAGE_BACKEND: str = "local"  # 's3' or 'local'
 
     model_config = SettingsConfigDict(
         case_sensitive=True,
