@@ -5,7 +5,7 @@ This project is a chunked audio file upload microservice built with Python and F
 ## Features
 - Receive audio files in chunked (multipart) form from clients
 - JWT (RS256) authentication for security and access control
-- Dual storage backend support: S3-compatible services (Liara, AWS S3) or local storage
+- Dual storage backend support: S3-compatible services (AWS S3) or local storage
 - User-based access control and file isolation (files organized by user_id/file_id)
 - Smart cleanup logic: different cleanup strategies for S3 vs local storage
 - Automatic cleanup of temporary files after successful upload
@@ -78,7 +78,7 @@ LOCAL_TEMP_CHUNK_PATH=/tmp/hayula_chunks
 S3_ACCESS_KEY=your_s3_access_key
 S3_SECRET_KEY=your_s3_secret_key
 S3_BUCKET_NAME=your_bucket_name
-S3_ENDPOINT_URL=https://s3.ir-liara.ir
+S3_ENDPOINT_URL=url
 S3_REGION_NAME=ir
 MAIN_SERVICE_JWT_PUBLIC_KEY=your_jwt_public_key
 JWT_ALGORITHM=RS256
