@@ -17,6 +17,7 @@ class Settings(BaseSettings):
 
     LOCAL_TEMP_CHUNK_PATH: Optional[str] = "/tmp/hayula_chunks"
     STORAGE_BACKEND: str = "local"  # 's3' or 'local'
+    SERVICE_PORT: int = 8000
 
     model_config = SettingsConfigDict(
         case_sensitive=True,
