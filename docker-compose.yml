@@ -1,0 +1,11 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - ${SERVICE_PORT}:8000
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONPATH=/app
