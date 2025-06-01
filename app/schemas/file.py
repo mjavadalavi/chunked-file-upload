@@ -2,15 +2,15 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 class InitSessionRequest(BaseModel):
-    main_service_file_id: int
+    file_id: int
     original_file_name: str
 
 class InitSessionResponseData(BaseModel):
-    upload_session_id: str
+    file_id: str
 
 class InitSessionResponse(BaseModel):
     status: str = "success"
-    message: str = "Upload session initialized."
+    message: str = "File created successfully."
     data: InitSessionResponseData
 
 class ChunkUploadResponse(BaseModel):
@@ -18,7 +18,6 @@ class ChunkUploadResponse(BaseModel):
     message: str = "Chunk uploaded successfully."
 
 class CompleteSessionRequest(BaseModel):
-    upload_session_id: str
     total_chunks: int
     main_service_file_id: int
 

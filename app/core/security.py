@@ -31,7 +31,7 @@ def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(secu
 
 def get_jwt_payload(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Dict[str, Any]:
     """
-    کل JWT payload رو برمی‌گردونه تا بتونیم مجوزهای دسترسی رو بررسی کنیم
+    Returns the full JWT payload
     """
     token = credentials.credentials
     try:
@@ -51,39 +51,38 @@ def get_jwt_payload(credentials: HTTPAuthorizationCredentials = Depends(security
 
 def check_file_access(payload: Dict[str, Any], file_id: int) -> bool:
     """
-    بررسی می‌کنه که آیا کاربر به فایل مورد نظر دسترسی داره یا نه
-    بر اساس file_id موجود در JWT payload
+    Checks if the user has access to the requested file based on the file_id in the JWT payload
     """
     user_id = payload.get("sub")
     if not user_id:
         return False
     
-    # JWT شامل file_id مجاز برای این توکن هست
+    # JWT contains allowed file_id for this token
     allowed_file_id = payload.get("file_id")
     
-    # بررسی اینکه file_id درخواستی با file_id موجود در JWT مطابقت داره
+    # Checking if the requested file_id matches the file_id in the JWT
     if allowed_file_id is None:
         return False
         
-    # file_id باید دقیقاً مطابقت داشته باشه
+    # file_id must match exactly
     return int(allowed_file_id) == int(file_id)
 
 
 async def file_access_middleware(request: Request, call_next):
     """
-    Middleware برای بررسی دسترسی فایل بر اساس file_id موجود در JWT
+    Middleware for checking file access based on file_id in JWT
     """
-    # لیست route هایی که نیاز به بررسی دسترسی فایل دارن
+    # List of routes that need file access check
     file_access_routes = [
-        r'/upload/download/(\d+)',  # دانلود فایل
-        r'/upload/init',           # شروع آپلود (file_id توی body هست)
-        r'/upload/complete',       # تکمیل آپلود (file_id توی body هست)
-        r'/upload/file'            # حذف فایل (file_id توی body هست)
+        r'/upload/download/(\d+)', # Download file
+        r'/upload/init',           # Start upload (file_id is in the body)
+        r'/upload/complete',       # Complete upload (file_id is in the body)
+        r'/upload/file'            # Delete file (file_id is in the body)
     ]
     
     path = request.url.path
     
-    # بررسی اینکه آیا این route نیاز به بررسی دسترسی فایل داره
+    # Checking if this route needs file access check
     needs_file_check = False
     file_id_from_url = None
     
@@ -91,12 +90,12 @@ async def file_access_middleware(request: Request, call_next):
         match = re.match(route_pattern, path)
         if match:
             needs_file_check = True
-            if match.groups():  # اگر file_id توی URL هست
+            if match.groups():  # If file_id is in the URL
                 file_id_from_url = int(match.group(1))
             break
     
     if needs_file_check:
-        # گرفتن JWT از header
+        # Getting JWT from header
         auth_header = request.headers.get("Authorization")
         if not auth_header or not auth_header.startswith("Bearer "):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing or invalid authorization header")
@@ -104,7 +103,7 @@ async def file_access_middleware(request: Request, call_next):
         token = auth_header.split(" ")[1]
         
         try:
-            # Decode کردن JWT
+            # Decoding JWT
             payload = jwt.decode(
                 token,
                 settings.MAIN_SERVICE_JWT_PUBLIC_KEY,
@@ -113,23 +112,23 @@ async def file_access_middleware(request: Request, call_next):
                 issuer=settings.EXPECTED_JWT_ISSUER,
             )
             
-            # مشخص کردن file_id که باید بررسی بشه
+            # Determining file_id to check
             requested_file_id = None
             
-            # اگر file_id توی URL هست
+            # If file_id is in the URL
             if file_id_from_url is not None:
                 requested_file_id = file_id_from_url
             
-            # اگر file_id توی body هست
+            # If file_id is in the body
             elif path in ['/upload/init', '/upload/complete', '/upload/file']:
-                # خواندن body
+                # Reading body
                 body = await request.body()
                 if body:
                     import json
                     try:
                         body_data = json.loads(body)
-                        # برای init و complete از main_service_file_id استفاده می‌کنیم
-                        # برای delete از file_id استفاده می‌کنیم
+                        # For init and complete, use main_service_file_id
+                        # For delete, use file_id
                         if path == '/upload/file':
                             requested_file_id = body_data.get('file_id')
                         else:
@@ -137,12 +136,11 @@ async def file_access_middleware(request: Request, call_next):
                     except json.JSONDecodeError:
                         pass
                 
-                # بازسازی request با همان body تا endpoint بتونه بخونه
+                # Rebuilding request with the same body so the endpoint can read it
                 async def receive():
                     return {"type": "http.request", "body": body}
                 request._receive = receive
             
-            # بررسی دسترسی به file_id درخواستی
             if requested_file_id is not None:
                 if not check_file_access(payload, requested_file_id):
                     jwt_file_id = payload.get("file_id", "unknown")
@@ -151,13 +149,13 @@ async def file_access_middleware(request: Request, call_next):
                         detail=f"Access denied. JWT is for file {jwt_file_id}, but you requested file {requested_file_id}."
                     )
             else:
-                # اگر نتونستیم file_id رو پیدا کنیم، احتیاط می‌کنیم
+                # If we couldn't find file_id, be cautious
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Could not determine file_id from request."
                 )
             
-            # JWT payload رو به request اضافه می‌کنیم تا endpoint ها بتونن استفاده کنن
+            # Adding JWT payload to request so endpoints can use it
             request.state.jwt_payload = payload
             
         except InvalidTokenError:
