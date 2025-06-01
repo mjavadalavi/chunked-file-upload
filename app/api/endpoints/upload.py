@@ -39,7 +39,6 @@ async def upload_chunk(
     chunk: UploadFile = File(...),
     user_id: str = Depends(get_current_user_id)
 ):
-    session = session_map.get(upload_session_id)
     if not file_service.check_user_access(upload_session_id, user_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid upload_session_id.")
     chunk_data = await chunk.read()
@@ -57,17 +56,17 @@ async def complete_session(
     merged_file_path = os.path.join(settings.PERSISTENT_LOCAL_STORAGE_PATH, req.upload_session_id, "merged_final_file")
     try:
         await file_service.merge_chunks(req.upload_session_id, req.total_chunks, merged_file_path)
-        s3_key = f"{user_id}/{req.main_service_file_id}/{session['original_file_name']}"
-        file_path_or_key = await file_service.upload_file(merged_file_path, s3_key)
+
         # Clean up logic
         if settings.STORAGE_BACKEND == "s3":
+            s3_key = f"{user_id}/{req.main_service_file_id}/{session['original_file_name']}"
+            file_path_or_key = await file_service.upload_file(merged_file_path, s3_key)
             await file_service.cleanup_session(req.upload_session_id)  # Delete all chunks
-            await file_service.delete_file(merged_file_path)  # Delete merged file
+            await file_service.delete_file(file_path_or_key)  # Delete merged file
             file_url = f"{settings.S3_ENDPOINT_URL}/{settings.S3_BUCKET_NAME}/{s3_key}"
             session_map.pop(req.upload_session_id, None)
         else:
-            await file_service.cleanup_session(req.upload_session_id)  # Only delete chunks, merged stays in final
-            # برای local storage، یک URL دانلود پذیر برمی‌گردونیم
+            await file_service.cleanup_session(req.upload_session_id) # Only delete chunks, merged stays in final
             file_url = f"{settings.UPLOAD_SERVICE_BASE_URL}/upload/download/{req.main_service_file_id}"
         return CompleteSessionResponse(
             status="success",
@@ -82,18 +81,12 @@ async def download_file(
     file_id: int,
     current_user_id: str = Depends(get_current_user_id)
 ):
-    """
-    دانلود فایل از local storage
-    فقط کاربر صاحب فایل می‌تونه دانلود کنه
-    """
-
-    # پیدا کردن فایل در local storage
+    
     user_file_dir = os.path.join(settings.PERSISTENT_LOCAL_STORAGE_PATH, "final", current_user_id, str(file_id))
     
     if not os.path.exists(user_file_dir):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found.")
     
-    # پیدا کردن اولین فایل در دایرکتوری (باید فقط یک فایل باشه)
     files = [f for f in os.listdir(user_file_dir) if os.path.isfile(os.path.join(user_file_dir, f))]
     
     if not files:
@@ -102,7 +95,6 @@ async def download_file(
     file_path = os.path.join(user_file_dir, files[0])
     filename = files[0]
     
-    # برگرداندن فایل برای دانلود
     return FileResponse(
         path=file_path,
         filename=filename,
@@ -111,16 +103,23 @@ async def download_file(
 
 @router.delete("/file")
 async def delete_file(
-    upload_session_id: str = Body(None, embed=True),
+    file_id: int = Body(...),
+    upload_session_id: str = Body(None),
     user_id: str = Depends(get_current_user_id)
 ):
     if upload_session_id:
         if not file_service.check_user_access(upload_session_id, user_id):
-            return {"status": "error", "message": "Access denied."}
+            return {"status": "error", "message": "Access denied to upload session."}
         await file_service.cleanup_session(upload_session_id)
-        return {"status": "success", "message": "Session folder and related files deleted (if existed)."}
-    else:
-        return {"status": "error", "message": "You must provide upload_session_id."}
+
+    try:
+        success = await file_service.delete_user_file(user_id, file_id)
+        if success:
+            return {"status": "success", "message": f"File {file_id} deleted successfully."}
+        else:
+            return {"status": "error", "message": f"File {file_id} not found."}
+    except Exception as e:
+        return {"status": "error", "message": f"Failed to delete file {file_id}: {str(e)}"}
 
 @router.get("/files")
 async def list_user_files(user_id: str = Depends(get_current_user_id)):

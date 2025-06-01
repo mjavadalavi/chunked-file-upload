@@ -77,7 +77,8 @@ async def file_access_middleware(request: Request, call_next):
     file_access_routes = [
         r'/upload/download/(\d+)',  # دانلود فایل
         r'/upload/init',           # شروع آپلود (file_id توی body هست)
-        r'/upload/complete'        # تکمیل آپلود (file_id توی body هست)
+        r'/upload/complete',       # تکمیل آپلود (file_id توی body هست)
+        r'/upload/file'            # حذف فایل (file_id توی body هست)
     ]
     
     path = request.url.path
@@ -120,14 +121,19 @@ async def file_access_middleware(request: Request, call_next):
                 requested_file_id = file_id_from_url
             
             # اگر file_id توی body هست
-            elif path in ['/upload/init', '/upload/complete']:
+            elif path in ['/upload/init', '/upload/complete', '/upload/file']:
                 # خواندن body
                 body = await request.body()
                 if body:
                     import json
                     try:
                         body_data = json.loads(body)
-                        requested_file_id = body_data.get('main_service_file_id')
+                        # برای init و complete از main_service_file_id استفاده می‌کنیم
+                        # برای delete از file_id استفاده می‌کنیم
+                        if path == '/upload/file':
+                            requested_file_id = body_data.get('file_id')
+                        else:
+                            requested_file_id = body_data.get('main_service_file_id')
                     except json.JSONDecodeError:
                         pass
                 

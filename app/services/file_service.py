@@ -60,4 +60,35 @@ class FileService:
             return False
         return True
 
+    async def delete_user_file(self, user_id: str, file_id: int):
+        """
+        حذف فایل کاربر بر اساس user_id و file_id
+        """
+        if settings.STORAGE_BACKEND == "s3":
+            # برای S3، ممکنه چندین فایل با prefix user_id/file_id/ باشه
+            # پس همه رو پیدا می‌کنیم و حذف می‌کنیم
+            files = self.list_user_files(user_id)
+            target_pattern = f"/{user_id}/{file_id}/"
+            deleted_count = 0
+            
+            for file_url in files:
+                if target_pattern in file_url:
+                    # استخراج S3 key از URL
+                    parts = file_url.split('/')
+                    bucket_index = parts.index(settings.S3_BUCKET_NAME)
+                    s3_key = '/'.join(parts[bucket_index + 1:])
+                    await self.storage.delete_file(s3_key)
+                    deleted_count += 1
+            
+            return deleted_count > 0
+        else:
+            # برای local storage، کل دایرکتوری file_id رو حذف می‌کنیم
+            file_dir = os.path.join(settings.PERSISTENT_LOCAL_STORAGE_PATH, "final", user_id, str(file_id))
+            if os.path.exists(file_dir):
+                # حذف کل دایرکتوری (شامل همه فایل‌هاش)
+                import shutil
+                shutil.rmtree(file_dir)
+                return True
+            return False
+
 file_service = FileService() 
