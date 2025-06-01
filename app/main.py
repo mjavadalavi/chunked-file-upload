@@ -1,5 +1,5 @@
 import logging
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from app.api.endpoints.files import router as files_router
 from app.core.config import settings
 from app.core.security import file_access_middleware
@@ -19,16 +19,43 @@ app = FastAPI(
     redoc_url=None if settings.ENV == "production" else f"/redoc"
 )
 
+# CORS Debug Middleware
+@app.middleware("http")
+async def cors_debug_middleware(request: Request, call_next):
+    origin = request.headers.get("origin")
+    if origin:
+        logging.info(f"Request from origin: {origin}")
+    
+    response = await call_next(request)
+    
+    # اضافه کردن CORS headers به صورت manual
+    if origin:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Accept, Accept-Language, Content-Language, Content-Type, Authorization, X-Requested-With, Origin, Access-Control-Request-Method, Access-Control-Request-Headers, Content-Range, X-File-Name, X-File-Size, X-Chunk-Index"
+        response.headers["Access-Control-Expose-Headers"] = "Content-Length, Content-Range, Accept-Ranges"
+    
+    return response
+
 # Adding middleware for file access check
 app.middleware("http")(file_access_middleware)
 
 # Adding CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://dev-upload.hyul.ir",
+        "https://upload.hyul.ir", 
+        "*"  # fallback
+    ],
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=[
+        "Accept",
+        "Content-Type",
+        "Origin",
+    ],
 )
 
 app.include_router(files_router, prefix="/files", tags=["files"]) 
