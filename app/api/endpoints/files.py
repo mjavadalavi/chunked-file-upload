@@ -35,6 +35,41 @@ async def create_file(
         data=InitSessionResponseData(file_id=req.file_id)
     )
 
+@router.get("/{file_id}")
+async def get_file(
+    file_id: int,
+    current_user_id: str = Depends(get_current_user_id)
+):
+    """
+    GET /files/{file_id} - Download a file
+    """
+    user_file_dir = os.path.join(settings.PERSISTENT_LOCAL_STORAGE_PATH, "final", current_user_id, str(file_id))
+    
+    if not os.path.exists(user_file_dir):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found.")
+    
+    files = [f for f in os.listdir(user_file_dir) if os.path.isfile(os.path.join(user_file_dir, f))]
+    
+    if not files:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found.")
+    
+    file_path = os.path.join(user_file_dir, files[0])
+    filename = files[0]
+    
+    return FileResponse(
+        path=file_path,
+        filename=filename,
+        media_type='application/octet-stream'
+    )
+
+@router.get("/")
+async def list_files(user_id: str = Depends(get_current_user_id)):
+    """
+    GET /files - List user's files
+    """
+    files = file_service.list_user_files(user_id)
+    return {"status": "success", "files": files}
+
 @router.put("/{file_id}", response_model=ChunkUploadResponse)
 async def upload_chunk_to_file(
     file_id: str,
@@ -106,33 +141,6 @@ async def complete_file_upload(
     except Exception as e:
         raise HTTPException(status_code=500, detail="File upload failed.")
 
-@router.get("/{file_id}")
-async def get_file(
-    file_id: int,
-    current_user_id: str = Depends(get_current_user_id)
-):
-    """
-    GET /files/{file_id} - Download a file
-    """
-    user_file_dir = os.path.join(settings.PERSISTENT_LOCAL_STORAGE_PATH, "final", current_user_id, str(file_id))
-    
-    if not os.path.exists(user_file_dir):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found.")
-    
-    files = [f for f in os.listdir(user_file_dir) if os.path.isfile(os.path.join(user_file_dir, f))]
-    
-    if not files:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found.")
-    
-    file_path = os.path.join(user_file_dir, files[0])
-    filename = files[0]
-    
-    return FileResponse(
-        path=file_path,
-        filename=filename,
-        media_type='application/octet-stream'
-    )
-
 @router.delete("/{file_id}")
 async def delete_file(
     file_id: int,
@@ -149,11 +157,3 @@ async def delete_file(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"File {file_id} not found.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete file {file_id}: {str(e)}")
-
-@router.get("/")
-async def list_files(user_id: str = Depends(get_current_user_id)):
-    """
-    GET /files - List user's files
-    """
-    files = file_service.list_user_files(user_id)
-    return {"status": "success", "files": files}
