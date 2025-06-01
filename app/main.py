@@ -47,6 +47,8 @@ app.add_middleware(
     allow_origins=[
         "https://dev-upload.hyul.ir",
         "https://upload.hyul.ir", 
+        "https://dev.hayula.monster",
+        "https://hayula.monster",
         "*"  # fallback
     ],
     allow_credentials=True,
@@ -55,6 +57,11 @@ app.add_middleware(
         "Accept",
         "Content-Type",
         "Origin",
+        "Authorization",
+        "Content-Range",
+        "X-Requested-With",
+        "Access-Control-Request-Method",
+        "Access-Control-Request-Headers"
     ],
 )
 
