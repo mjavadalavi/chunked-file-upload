@@ -5,6 +5,5 @@ boto3
 python-dotenv
 pydantic
 requests
-PyJWT 
-boto3
+PyJWT[crypto]
 pydantic-settings

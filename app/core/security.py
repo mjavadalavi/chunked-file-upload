@@ -1,7 +1,7 @@
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
-from jwt import InvalidTokenError
+from jwt import InvalidTokenError, ExpiredSignatureError, InvalidAudienceError, InvalidIssuerError, MissingRequiredClaimError
 from app.core.config import settings
 from typing import Dict, Any
 import re
@@ -11,11 +11,18 @@ security = HTTPBearer()
 
 def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(security)):
     token = credentials.credentials
+    print(f"Received token: {token}")
+    try:
+        unverified_header = jwt.get_unverified_header(token)
+        print(f"Unverified header: {unverified_header}")
+    except Exception as e:
+        print(f"Error getting unverified header: {e}")
+
     try:
         payload = jwt.decode(
             token,
             settings.MAIN_SERVICE_JWT_PUBLIC_KEY,
-            algorithms=[settings.JWT_ALGORITHM],
+            algorithms=["RS256"],
             audience=settings.EXPECTED_JWT_AUDIENCE,
             issuer=settings.EXPECTED_JWT_ISSUER,
         )
@@ -23,9 +30,19 @@ def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(secu
         if not user_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid token: missing sub.")
         return user_id
+    except ExpiredSignatureError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired.")
+    except InvalidAudienceError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token audience.")
+    except InvalidIssuerError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token issuer.")
+    except MissingRequiredClaimError as e:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Missing claim in token: {e}")
     except InvalidTokenError as e:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token.")
+        print(f"Specific InvalidTokenError: {type(e).__name__} - {str(e)}")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Invalid token: {str(e)}")
     except Exception as e:
+        print(f"Generic token validation error: {type(e).__name__} - {str(e)}")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token validation error.")
 
 
@@ -34,18 +51,35 @@ def get_jwt_payload(credentials: HTTPAuthorizationCredentials = Depends(security
     Returns the full JWT payload
     """
     token = credentials.credentials
+    print(f"Received token (in get_jwt_payload): {token}")
+    try:
+        unverified_header = jwt.get_unverified_header(token)
+        print(f"Unverified header (in get_jwt_payload): {unverified_header}")
+    except Exception as e:
+        print(f"Error getting unverified header (in get_jwt_payload): {e}")
+
     try:
         payload = jwt.decode(
             token,
             settings.MAIN_SERVICE_JWT_PUBLIC_KEY,
-            algorithms=[settings.JWT_ALGORITHM],
+            algorithms=["RS256"],
             audience=settings.EXPECTED_JWT_AUDIENCE,
             issuer=settings.EXPECTED_JWT_ISSUER,
         )
         return payload
+    except ExpiredSignatureError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired.")
+    except InvalidAudienceError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token audience.")
+    except InvalidIssuerError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token issuer.")
+    except MissingRequiredClaimError as e:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Missing claim in token: {e}")
     except InvalidTokenError as e:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token.")
+        print(f"Specific InvalidTokenError in get_jwt_payload: {type(e).__name__} - {str(e)}")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Invalid token: {str(e)}")
     except Exception as e:
+        print(f"Generic token validation error in get_jwt_payload: {type(e).__name__} - {str(e)}")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token validation error.")
 
 
@@ -107,7 +141,7 @@ async def file_access_middleware(request: Request, call_next):
             payload = jwt.decode(
                 token,
                 settings.MAIN_SERVICE_JWT_PUBLIC_KEY,
-                algorithms=[settings.JWT_ALGORITHM],
+                algorithms=["RS256"],
                 audience=settings.EXPECTED_JWT_AUDIENCE,
                 issuer=settings.EXPECTED_JWT_ISSUER,
             )

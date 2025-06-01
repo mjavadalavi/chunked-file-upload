@@ -11,7 +11,10 @@ from app.core.config import settings
 import os
 from app.core.session import session_map
 from typing import Optional
+import logging
 import re
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -23,13 +26,10 @@ async def create_file(
     """
     POST /files - Initialize a new file upload session
     """
-    base_path = os.path.join(settings.LOCAL_TEMP_CHUNK_PATH, req.file_id)
-    await file_service.save_chunk(req.file_id, -1, b"")  # Ensure dir exists (dummy chunk)
-    if os.path.exists(os.path.join(base_path, "chunk_-1")):
-        os.remove(os.path.join(base_path, "chunk_-1"))
-    session_map[req.file_id] = {
+    session_map[str(req.file_id)] = {
         "user_id": user_id,
-        "original_file_name": req.original_file_name
+        "original_file_name": req.original_file_name,
+        "main_service_file_id": req.file_id
     }
     return InitSessionResponse(
         data=InitSessionResponseData(file_id=req.file_id)
@@ -82,7 +82,7 @@ async def upload_chunk_to_file(
     PUT /files/{file_id} - Upload a chunk to an existing file session
     chunk_index from form data OR Content-Range header format: "bytes start-end/total"
     """
-    if not file_service.check_user_access(file_id, user_id):
+    if not file_service.check_user_access(str(file_id), user_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found or access denied.")
     
     # If chunk_index is not provided, calculate it from Content-Range header
@@ -92,16 +92,25 @@ async def upload_chunk_to_file(
             match = re.match(r'bytes (\d+)-(\d+)/(\d+)', content_range)
             if match:
                 start, end, total = map(int, match.groups())
-                chunk_size = end - start + 1
-                chunk_index = start // chunk_size
+                # محاسبه chunk_index بر اساس start position
+                # فرض میکنیم هر chunk حداکثر 1MB باشه
+                chunk_index = start // (1024 * 1024)  # Default chunk size 1MB
             else:
-                chunk_index = 0
+                raise HTTPException(status_code=400, detail="Invalid Content-Range header format")
         else:
-            raise HTTPException(status_code=400, detail="Either chunk_index or Content-Range header is required")
+            # اگر هیچکدوم نباشه، chunk_index رو 0 قرار میدیم
+            chunk_index = 0
     
-    chunk_data = await chunk.read()
-    await file_service.save_chunk(file_id, chunk_index, chunk_data)
-    return ChunkUploadResponse()
+    try:
+        chunk_data = await chunk.read()
+        if not chunk_data:
+            raise HTTPException(status_code=400, detail="Empty chunk received")
+        
+        await file_service.save_chunk(str(file_id), chunk_index, chunk_data)
+        return ChunkUploadResponse()
+    except Exception as e:
+        logger.error(f"Failed to save chunk: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to save chunk: {str(e)}")
 
 @router.patch("/{file_id}", response_model=CompleteSessionResponse)
 async def complete_file_upload(
@@ -112,25 +121,25 @@ async def complete_file_upload(
     """
     PATCH /files/{file_id} - Complete the file upload process
     """
-    if not file_service.check_user_access(file_id, user_id, req.main_service_file_id):
+    if not file_service.check_user_access(str(file_id), user_id, req.main_service_file_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found or access denied.")
     
-    session = session_map.get(file_id)
-    merged_file_path = os.path.join(settings.PERSISTENT_LOCAL_STORAGE_PATH, file_id, "merged_final_file")
+    session = session_map.get(str(file_id))
+    merged_file_path = os.path.join(settings.PERSISTENT_LOCAL_STORAGE_PATH, str(file_id), "merged_final_file")
     
     try:
-        await file_service.merge_chunks(file_id, req.total_chunks, merged_file_path)
+        await file_service.merge_chunks(str(file_id), req.total_chunks, merged_file_path)
 
         # Clean up logic
         if settings.STORAGE_BACKEND == "s3":
             s3_key = f"{user_id}/{req.main_service_file_id}/{session['original_file_name']}"
             file_path_or_key = await file_service.upload_file(merged_file_path, s3_key)
-            await file_service.cleanup_session(file_id)  # Delete all chunks
+            await file_service.cleanup_session(str(file_id))  # Delete all chunks
             await file_service.delete_file(file_path_or_key)  # Delete merged file
             file_url = f"{settings.S3_ENDPOINT_URL}/{settings.S3_BUCKET_NAME}/{s3_key}"
-            session_map.pop(file_id, None)
+            session_map.pop(str(file_id), None)
         else:
-            await file_service.cleanup_session(file_id) # Only delete chunks, merged stays in final
+            await file_service.cleanup_session(str(file_id)) # Only delete chunks, merged stays in final
             file_url = f"{settings.UPLOAD_SERVICE_BASE_URL}/files/{req.main_service_file_id}"
             
         return CompleteSessionResponse(
@@ -139,6 +148,7 @@ async def complete_file_upload(
             data=CompleteSessionResponseData(file_download_url=file_url)
         )
     except Exception as e:
+        logger.error(f"File upload failed: {str(e)}")
         raise HTTPException(status_code=500, detail="File upload failed.")
 
 @router.delete("/{file_id}")

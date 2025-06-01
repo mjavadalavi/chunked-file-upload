@@ -1,12 +1,11 @@
-from pydantic import BaseModel, Field
-from typing import Optional
+from pydantic import BaseModel
 
 class InitSessionRequest(BaseModel):
     file_id: int
     original_file_name: str
 
 class InitSessionResponseData(BaseModel):
-    file_id: str
+    file_id: int
 
 class InitSessionResponse(BaseModel):
     status: str = "success"

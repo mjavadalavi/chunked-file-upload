@@ -20,7 +20,7 @@ class Settings(BaseSettings):
 
     # Persistent Local Storage for completed files (if not using S3 as primary)
     PERSISTENT_LOCAL_STORAGE_PATH: str = "/var/data/hayula_uploads" # Example, make sure this path is writable by the service
-    UPLOAD_SERVICE_BASE_URL: str = "http://localhost:8000" # Or your actual service URL
+    UPLOAD_SERVICE_BASE_URL: str = "http://localhost:8004" # Or your actual service URL
 
     STORAGE_BACKEND: str = "local"  # 's3' or 'local'
     SERVICE_PORT: int = 8000
