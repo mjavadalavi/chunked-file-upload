@@ -23,7 +23,7 @@ class CompleteSessionRequest(BaseModel):
     main_service_file_id: int
 
 class CompleteSessionResponseData(BaseModel):
-    file_path_on_upload_service: str
+    file_download_url: str
 
 class CompleteSessionResponse(BaseModel):
     status: str = "success"

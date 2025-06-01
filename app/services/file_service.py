@@ -41,12 +41,15 @@ class FileService:
                     file_url = f"{settings.S3_ENDPOINT_URL}/{settings.S3_BUCKET_NAME}/{obj['Key']}"
                     files.append(file_url)
         else:
-            user_dir = os.path.join(settings.LOCAL_TEMP_CHUNK_PATH, "final", user_id)
+            # برای local storage، URL های دانلود پذیر برمی‌گردونیم
+            user_dir = os.path.join(settings.PERSISTENT_LOCAL_STORAGE_PATH, "final", user_id)
             if os.path.exists(user_dir):
                 for file_id in os.listdir(user_dir):
-                    file_path = os.path.join(user_dir, file_id)
-                    if os.path.isfile(file_path):
-                        files.append(file_path)
+                    file_id_path = os.path.join(user_dir, file_id)
+                    if os.path.isdir(file_id_path):  # file_id یک دایرکتوری هست
+                        # URL دانلود پذیر برای این فایل می‌سازیم
+                        download_url = f"{settings.UPLOAD_SERVICE_BASE_URL}/upload/download/{file_id}"
+                        files.append(download_url)
         return files
 
     def check_user_access(self, upload_session_id: str, user_id: str, main_service_file_id: int = None):

@@ -31,7 +31,7 @@ class InternalStorage(BaseStorage):
 
     async def upload_file(self, file_path: str, s3_key: str) -> str:
         # For local, just move/rename the file to a final location
-        final_path = os.path.join(settings.LOCAL_TEMP_CHUNK_PATH, "final", s3_key)
+        final_path = os.path.join(settings.PERSISTENT_LOCAL_STORAGE_PATH, "final", s3_key)
         final_dir = os.path.dirname(final_path)
         await asyncio.to_thread(os.makedirs, final_dir, True)
         await asyncio.to_thread(shutil.move, file_path, final_path)

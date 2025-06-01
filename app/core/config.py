@@ -15,7 +15,13 @@ class Settings(BaseSettings):
     S3_ENDPOINT_URL: str = ""
     S3_REGION_NAME: Optional[str] = None
 
-    LOCAL_TEMP_CHUNK_PATH: Optional[str] = "/tmp/hayula_chunks"
+    # Local Temporary Storage for Chunks (Optional, if not using direct S3 multipart)
+    LOCAL_TEMP_CHUNK_PATH: str = "/tmp/hayula_chunks"
+
+    # Persistent Local Storage for completed files (if not using S3 as primary)
+    PERSISTENT_LOCAL_STORAGE_PATH: str = "/var/data/hayula_uploads" # Example, make sure this path is writable by the service
+    UPLOAD_SERVICE_BASE_URL: str = "http://localhost:8000" # Or your actual service URL
+
     STORAGE_BACKEND: str = "local"  # 's3' or 'local'
     SERVICE_PORT: int = 8000
 

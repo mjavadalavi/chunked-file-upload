@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, status, Body
+from fastapi.responses import FileResponse
 from app.core.security import get_current_user_id
 from app.schemas.upload import (
     InitSessionRequest, InitSessionResponse, InitSessionResponseData,
@@ -53,7 +54,7 @@ async def complete_session(
     if not file_service.check_user_access(req.upload_session_id, user_id, req.main_service_file_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid upload_session_id or file_id.")
     session = session_map.get(req.upload_session_id)
-    merged_file_path = os.path.join(settings.LOCAL_TEMP_CHUNK_PATH, req.upload_session_id, "merged_final_file")
+    merged_file_path = os.path.join(settings.PERSISTENT_LOCAL_STORAGE_PATH, req.upload_session_id, "merged_final_file")
     try:
         await file_service.merge_chunks(req.upload_session_id, req.total_chunks, merged_file_path)
         s3_key = f"{user_id}/{req.main_service_file_id}/{session['original_file_name']}"
@@ -66,14 +67,47 @@ async def complete_session(
             session_map.pop(req.upload_session_id, None)
         else:
             await file_service.cleanup_session(req.upload_session_id)  # Only delete chunks, merged stays in final
-            file_url = file_path_or_key
+            # برای local storage، یک URL دانلود پذیر برمی‌گردونیم
+            file_url = f"{settings.UPLOAD_SERVICE_BASE_URL}/upload/download/{req.main_service_file_id}"
         return CompleteSessionResponse(
             status="success",
             message="File upload completed and main service notified.",
-            data=CompleteSessionResponseData(file_path_on_upload_service=file_url)
+            data=CompleteSessionResponseData(file_download_url=file_url)
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail="File upload failed.")
+
+@router.get("/download/{file_id}")
+async def download_file(
+    file_id: int,
+    current_user_id: str = Depends(get_current_user_id)
+):
+    """
+    دانلود فایل از local storage
+    فقط کاربر صاحب فایل می‌تونه دانلود کنه
+    """
+
+    # پیدا کردن فایل در local storage
+    user_file_dir = os.path.join(settings.PERSISTENT_LOCAL_STORAGE_PATH, "final", current_user_id, str(file_id))
+    
+    if not os.path.exists(user_file_dir):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found.")
+    
+    # پیدا کردن اولین فایل در دایرکتوری (باید فقط یک فایل باشه)
+    files = [f for f in os.listdir(user_file_dir) if os.path.isfile(os.path.join(user_file_dir, f))]
+    
+    if not files:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found.")
+    
+    file_path = os.path.join(user_file_dir, files[0])
+    filename = files[0]
+    
+    # برگرداندن فایل برای دانلود
+    return FileResponse(
+        path=file_path,
+        filename=filename,
+        media_type='application/octet-stream'
+    )
 
 @router.delete("/file")
 async def delete_file(
