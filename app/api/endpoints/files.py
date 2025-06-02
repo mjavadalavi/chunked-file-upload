@@ -11,11 +11,10 @@ from app.core.config import settings
 import os
 from app.core.session import session_map
 from typing import Optional
-import logging
+from main import logger
 import re
 import shutil
 
-logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -45,18 +44,20 @@ async def get_file(
     GET /files/{file_id} - Download a file
     """
     user_file_dir = os.path.join(settings.PERSISTENT_LOCAL_STORAGE_PATH, "final", current_user_id, str(file_id))
-    
+    logger.info(f"User file dir: {user_file_dir}")
+    logger.info(f"User file dir exists: {os.path.exists(user_file_dir)}")
     if not os.path.exists(user_file_dir):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found.")
-    
+
     files = [f for f in os.listdir(user_file_dir) if os.path.isfile(os.path.join(user_file_dir, f))]
-    
+    logger.info(f"Files: {files}")
     if not files:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found.")
     
     file_path = os.path.join(user_file_dir, files[0])
     filename = files[0]
-    
+    logger.info(f"File path: {file_path}")
+    logger.info(f"Filename: {filename}")
     return FileResponse(
         path=file_path,
         filename=filename,
@@ -147,8 +148,10 @@ async def complete_file_upload(
         else:
             # برای local storage، فایل رو به final directory منتقل میکنیم
             final_dir = os.path.join(settings.PERSISTENT_LOCAL_STORAGE_PATH, "final", user_id, str(file_id))
+            logger.info(f"Final dir: {final_dir}")
             os.makedirs(final_dir, exist_ok=True)
             final_file_path = os.path.join(final_dir, original_filename)
+            logger.info(f"Final file path: {final_file_path}")
             
             # انتقال فایل merged به final directory
             shutil.move(merged_file_path, final_file_path)
