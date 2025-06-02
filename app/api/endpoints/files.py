@@ -11,11 +11,11 @@ from app.core.config import settings
 import os
 from app.core.session import session_map
 from typing import Optional
-from main import logger
+import logging
 import re
 import shutil
 
-
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 @router.post("/", response_model=InitSessionResponse)
