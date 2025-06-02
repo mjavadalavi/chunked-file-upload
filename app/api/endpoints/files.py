@@ -146,7 +146,7 @@ async def complete_file_upload(
             session_map.pop(str(file_id), None)
         else:
             # برای local storage، فایل رو به final directory منتقل میکنیم
-            final_dir = os.path.join(settings.PERSISTENT_LOCAL_STORAGE_PATH, "final", user_id, str(req.main_service_file_id))
+            final_dir = os.path.join(settings.PERSISTENT_LOCAL_STORAGE_PATH, "final", user_id, str(file_id))
             os.makedirs(final_dir, exist_ok=True)
             final_file_path = os.path.join(final_dir, original_filename)
             
@@ -155,7 +155,7 @@ async def complete_file_upload(
             logger.info(f"File moved to final location: {final_file_path}")
             
             await file_service.cleanup_session(str(file_id)) # Delete chunks
-            file_url = f"{settings.UPLOAD_SERVICE_BASE_URL}/files/{req.main_service_file_id}"
+            file_url = f"{settings.UPLOAD_SERVICE_BASE_URL}/files/{file_id}"
             
         return CompleteSessionResponse(
             status="success",

@@ -48,7 +48,7 @@ class FileService:
                     file_id_path = os.path.join(user_dir, file_id)
                     if os.path.isdir(file_id_path):  # file_id یک دایرکتوری هست
                         # URL دانلود پذیر برای این فایل می‌سازیم
-                        download_url = f"{settings.UPLOAD_SERVICE_BASE_URL}/upload/download/{file_id}"
+                        download_url = f"{settings.UPLOAD_SERVICE_BASE_URL}/files/{file_id}"
                         files.append(download_url)
         return files
 
