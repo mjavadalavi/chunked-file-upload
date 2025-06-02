@@ -13,6 +13,7 @@ from app.core.session import session_map
 from typing import Optional
 import logging
 import re
+import shutil
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +126,12 @@ async def complete_file_upload(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found or access denied.")
     
     session = session_map.get(str(file_id))
-    merged_file_path = os.path.join(settings.PERSISTENT_LOCAL_STORAGE_PATH, str(file_id), "merged_final_file")
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found.")
+    
+    # استفاده از نام اصلی فایل به جای merged_final_file
+    original_filename = session['original_file_name']
+    merged_file_path = os.path.join(settings.PERSISTENT_LOCAL_STORAGE_PATH, str(file_id), original_filename)
     
     try:
         await file_service.merge_chunks(str(file_id), req.total_chunks, merged_file_path)
@@ -139,7 +145,16 @@ async def complete_file_upload(
             file_url = f"{settings.S3_ENDPOINT_URL}/{settings.S3_BUCKET_NAME}/{s3_key}"
             session_map.pop(str(file_id), None)
         else:
-            await file_service.cleanup_session(str(file_id)) # Only delete chunks, merged stays in final
+            # برای local storage، فایل رو به final directory منتقل میکنیم
+            final_dir = os.path.join(settings.PERSISTENT_LOCAL_STORAGE_PATH, "final", user_id, str(req.main_service_file_id))
+            os.makedirs(final_dir, exist_ok=True)
+            final_file_path = os.path.join(final_dir, original_filename)
+            
+            # انتقال فایل merged به final directory
+            shutil.move(merged_file_path, final_file_path)
+            logger.info(f"File moved to final location: {final_file_path}")
+            
+            await file_service.cleanup_session(str(file_id)) # Delete chunks
             file_url = f"{settings.UPLOAD_SERVICE_BASE_URL}/files/{req.main_service_file_id}"
             
         return CompleteSessionResponse(
