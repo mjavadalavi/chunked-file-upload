@@ -7,5 +7,7 @@ services:
       - ${SERVICE_PORT}:8000
     volumes:
       - .:/app
+      - ./persistent_data:/app/persistent_data
+      - ./temp_chunks:/app/temp_chunks
     environment:
       - PYTHONPATH=/app
